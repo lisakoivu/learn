@@ -5,6 +5,12 @@ import {CdkStack} from '../lib/cdk-stack';
 
 const app = new cdk.App();
 new CdkStack(app, 'CdkStack', {
+  vpcId: 'vpc-09186ce91104e20c6',
+  availabilityZones: ['us-west-2b', 'us-west-2a'],
+  privateSubnetIds: ['subnet-0ca25478c2d35b8e4', 'subnet-094a6a1daa32e3a52'],
+  keyArn:
+    'arn:aws:kms:us-west-2:825434587220:key/mrk-7a27a6cf08124ca6b01ed91e476aeb0f',
+
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
