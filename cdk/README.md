@@ -1,4 +1,4 @@
-# Welcome to your CDK TypeScript project
+https://dnx.solutions/how-to-deploy-an-alb-asg-ec2-using-cdk-and-typescript/
 
 This is a blank project for CDK development with TypeScript.
 
