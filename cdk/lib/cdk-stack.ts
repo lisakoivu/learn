@@ -2,8 +2,10 @@ import {Construct} from 'constructs';
 import * as cdk from 'aws-cdk-lib';
 import {Stack, StackProps} from 'aws-cdk-lib';
 import {
+  Effect,
   InstanceProfile,
   ManagedPolicy,
+  PolicyStatement,
   Role,
   ServicePrincipal,
 } from 'aws-cdk-lib/aws-iam';
@@ -20,6 +22,7 @@ import {
   SubnetSelection,
   ISubnet,
   Subnet,
+  UserData,
 } from 'aws-cdk-lib/aws-ec2';
 import {FileSystem, LifecyclePolicy} from 'aws-cdk-lib/aws-efs';
 import * as p from '../package.json';
@@ -70,6 +73,19 @@ export class CdkStack extends cdk.Stack {
       kmsKey: key,
     });
 
+    fileSystem.addToResourcePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: [
+          'elasticfilesystem:ClientMount',
+          'elasticfilesystem:ClientWrite',
+          'elasticfilesystem:ClientRootAccess',
+        ],
+        resources: ['*'],
+        principals: [new ServicePrincipal('ec2.amazonaws.com')],
+      })
+    );
+
     // Create mount targets for the file system
     fileSystem.addAccessPoint('MyAccessPoint', {
       createAcl: {
@@ -77,12 +93,11 @@ export class CdkStack extends cdk.Stack {
         ownerUid: '1000',
         permissions: '755',
       },
-      path: '/my-mount-point', // Example mount point path
+      path: '/mnt', // Example mount point path
       posixUser: {
         gid: '1000',
         uid: '1000',
       },
-      // securityGroup: [securityGroup], // Associate the security group with the mount target
     });
 
     // security group for the ec2 instance
@@ -114,27 +129,39 @@ export class CdkStack extends cdk.Stack {
       assumedBy: new ServicePrincipal('ec2.amazonaws.com'),
       managedPolicies: [
         ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
+        ManagedPolicy.fromAwsManagedPolicyName(
+          'AmazonElasticFileSystemClientFullAccess'
+        ),
       ],
     });
 
-    // Create an instance profile
-    // const instanceProfile = new InstanceProfile(this, 'InstanceProfile', {
-    //   role: ec2Role,
-    //   instanceProfileName: 'EC2InstanceProfile',
-    // });
+    // User data script to mount EFS
+    const userData = UserData.forLinux();
+    userData.addCommands(
+      'yum install -y amazon-efs-utils',
+      `mount -t efs -o tls ${fileSystem.fileSystemId}.efs.${this.region}.amazonaws.com:/ /mnt/efs`,
+      `echo "${fileSystem.fileSystemId}.efs.${this.region}.amazonaws.com:/ /mnt/efs efs defaults,_netdev 0 0" >> /etc/fstab`
+    );
 
-    const instance = new Instance(this, 'targetInstance', {
-      vpc: vpc,
-      securityGroup: ec2SecurityGroup,
-      vpcSubnets: subnetSelection,
-      instanceType: InstanceType.of(
-        InstanceClass.BURSTABLE2,
-        InstanceSize.MEDIUM,
-      ),
-      role: ec2Role,
-      machineImage: new AmazonLinuxImage({
-        generation: AmazonLinuxGeneration.AMAZON_LINUX_2,
-      }),
-    });
+    const createInstance = (instanceId: string) => {
+      return new Instance(this, instanceId, {
+        vpc: vpc,
+        securityGroup: ec2SecurityGroup,
+        vpcSubnets: subnetSelection,
+        instanceType: InstanceType.of(
+          InstanceClass.BURSTABLE2,
+          InstanceSize.MEDIUM
+        ),
+        role: ec2Role,
+        machineImage: new AmazonLinuxImage({
+          generation: AmazonLinuxGeneration.AMAZON_LINUX_2,
+        }),
+        userData: userData,
+      });
+    };
+
+    // Create two identical EC2 instances
+    createInstance('targetInstance1');
+    createInstance('targetInstance2');
   }
 }
