@@ -7,7 +7,6 @@ import {
   AmazonLinuxImage,
   Instance,
   InstanceType,
-  InterfaceVpcEndpointAwsService,
   Peer,
   Port,
   SecurityGroup,
@@ -19,8 +18,6 @@ import {
 import {Key} from 'aws-cdk-lib/aws-kms';
 import * as fs from 'fs';
 import {
-  AnyPrincipal,
-  Effect,
   ManagedPolicy,
   PolicyStatement,
   Role,
