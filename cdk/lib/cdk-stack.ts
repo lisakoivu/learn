@@ -1,9 +1,43 @@
 import {Construct} from 'constructs';
 import * as cdk from 'aws-cdk-lib';
-import {Stack, StackProps} from 'aws-cdk-lib';
+import {StackProps} from 'aws-cdk-lib';
 import * as p from '../package.json';
-import {Vpc} from 'aws-cdk-lib/aws-ec2';
+import {
+  AmazonLinuxGeneration,
+  AmazonLinuxImage,
+  Instance,
+  InstanceType,
+  InterfaceVpcEndpointAwsService,
+  Peer,
+  Port,
+  SecurityGroup,
+  Subnet,
+  SubnetType,
+  UserData,
+  Vpc,
+} from 'aws-cdk-lib/aws-ec2';
 import {Key} from 'aws-cdk-lib/aws-kms';
+import * as fs from 'fs';
+import {
+  AnyPrincipal,
+  Effect,
+  ManagedPolicy,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+} from 'aws-cdk-lib/aws-iam';
+import * as os from 'os';
+import * as path from 'node:path';
+import {
+  AccessLogFormat,
+  EndpointType,
+  LogGroupLogDestination,
+  MethodLoggingLevel,
+  MockIntegration,
+  Model,
+  RestApi,
+} from 'aws-cdk-lib/aws-apigateway';
+import {LogGroup} from 'aws-cdk-lib/aws-logs';
 
 export interface CdkStackProps extends StackProps {
   readonly vpcId: string;
@@ -12,19 +46,191 @@ export interface CdkStackProps extends StackProps {
   readonly keyArn: string;
 }
 
+interface Config {
+  readonly vpcId: string;
+  readonly vpcCidrBlock: string;
+  readonly availabilityZones: string[];
+  readonly privateSubnetIds: string[];
+  readonly keyArn: string;
+  readonly publicSubnetIds: string[];
+}
+
 export class CdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: CdkStackProps) {
     super(scope, id, props);
     this.addMetadata('Version', p.version);
     this.addMetadata('Name', p.name);
 
+    const config: Config = JSON.parse(
+      fs.readFileSync('./configs/config.json', 'utf8').trim()
+    );
+
+    const key = Key.fromKeyArn(this, 'sharedKey', config.keyArn);
+
     const vpc = Vpc.fromVpcAttributes(this, 'Vpc', {
-      vpcId: props.vpcId,
-      availabilityZones: props.availabilityZones,
-      privateSubnetIds: props.privateSubnetIds,
+      vpcId: config.vpcId,
+      vpcCidrBlock: config.vpcCidrBlock, // Include vpcCidrBlock
+      availabilityZones: config.availabilityZones,
+      privateSubnetIds: config.privateSubnetIds,
+      publicSubnetIds: config.publicSubnetIds,
     });
 
-    const key = Key.fromKeyArn(this, 'sharedKey', props.keyArn);
+    // Map the subnet IDs to ISubnet with availabilityZone
+    const privateSubnets = config.privateSubnetIds.map((subnetId, index) =>
+      Subnet.fromSubnetAttributes(this, `Subnet-${subnetId}`, {
+        subnetId: subnetId,
+        availabilityZone: config.availabilityZones[index],
+      })
+    );
+    //-------------------------------------------------------------------------
+    // ec2 instance to test api calls and allow jump access to postgres database
+    const ec2Role = new Role(this, 'EC2InstanceRole', {
+      assumedBy: new ServicePrincipal('ec2.amazonaws.com'),
+    });
 
+    ec2Role.addToPolicy(
+      new PolicyStatement({
+        actions: ['execute-api:Invoke'],
+        resources: ['*'],
+      })
+    );
 
+    ec2Role.addManagedPolicy(
+      ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore')
+    );
+
+    // Construct the path to the public key file in the ~/.ssh directory
+    const homeDir = os.homedir();
+    const publicKeyPath = path.join(homeDir, '.ssh', 'lisamariekoivu.pub');
+
+    // Read the public key file
+    const publicKey = fs.readFileSync(publicKeyPath, 'utf8').trim();
+
+    // Define user data to add your public key
+    const userData = UserData.forLinux();
+    userData.addCommands(
+      'mkdir -p /home/ec2-user/.ssh',
+      `echo "${publicKey}" >> /home/ec2-user/.ssh/authorized_keys`,
+      'chown -R ec2-user:ec2-user /home/ec2-user/.ssh',
+      'chmod 700 /home/ec2-user/.ssh',
+      'chmod 600 /home/ec2-user/.ssh/authorized_keys'
+    );
+    ``;
+
+    // Create a security group
+    const securityGroup = new SecurityGroup(this, 'JumpServerSG', {
+      vpc,
+      description: 'Allow access to the jump server.',
+      allowAllOutbound: true,
+    });
+
+    // Allow SSH access from anywhere (or restrict to your IP range)
+    securityGroup.addIngressRule(
+      Peer.ipv4('97.100.3.218/32'),
+      Port.allTraffic(),
+      'Allow SSH access from the internet'
+    );
+
+    const ec2Instance = new Instance(this, 'JumpServer', {
+      instanceType: new InstanceType('t2.small'),
+      machineImage: new AmazonLinuxImage({
+        generation: AmazonLinuxGeneration.AMAZON_LINUX_2,
+      }),
+      securityGroup: securityGroup,
+      userData: userData,
+      vpc,
+      role: ec2Role,
+      vpcSubnets: {
+        subnetType: SubnetType.PUBLIC,
+      },
+    });
+
+    //-------------------------------------------------------------------------
+    // api definition
+
+    const logGroup = new LogGroup(this, 'ApiGatewayAccessLogs', {
+      retention: 7,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // Ensure security group allows traffic from VPC
+    const apiEndpointSecurityGroup = new SecurityGroup(this, 'ApiEndpointSG', {
+      vpc,
+      description: 'Allow traffic to API Gateway endpoint',
+      allowAllOutbound: true,
+    });
+
+    apiEndpointSecurityGroup.addIngressRule(
+      Peer.ipv4(vpc.vpcCidrBlock),
+      Port.tcp(443),
+      'Allow HTTPS traffic from VPC'
+    );
+
+    // Create the interface endpoint for execute-api
+    const apiEndpoint = vpc.addInterfaceEndpoint('ExecuteApiEndpoint', {
+      service: InterfaceVpcEndpointAwsService.APIGATEWAY,
+      subnets: {subnets: privateSubnets},
+      securityGroups: [apiEndpointSecurityGroup],
+      privateDnsEnabled: true,
+    });
+
+    const apiResourcePolicy = new PolicyStatement({
+      effect: Effect.ALLOW,
+      principals: [new AnyPrincipal()],
+      actions: ['execute-api:Invoke'],
+      resources: [`arn:aws:execute-api:${this.region}:${this.account}:*`],
+      conditions: {
+        StringEquals: {
+          'aws:SourceVpce': apiEndpoint.vpcEndpointId,
+        },
+      },
+    });
+
+    const restApi = new RestApi(this, 'RestApi', {
+      cloudWatchRole: true,
+      deploy: true,
+      policy: new cdk.aws_iam.PolicyDocument({
+        statements: [apiResourcePolicy],
+      }),
+      endpointConfiguration: {
+        types: [EndpointType.PRIVATE],
+        vpcEndpoints: [apiEndpoint],
+      },
+      deployOptions: {
+        stageName: 'test',
+        accessLogDestination: new LogGroupLogDestination(logGroup),
+        accessLogFormat: AccessLogFormat.jsonWithStandardFields(),
+        loggingLevel: MethodLoggingLevel.INFO,
+        dataTraceEnabled: true,
+        metricsEnabled: true,
+      },
+    });
+
+    const mockIntegration = new MockIntegration({
+      integrationResponses: [
+        {
+          statusCode: '200',
+          responseTemplates: {
+            'application/json': JSON.stringify({message: 'Mock response'}),
+          },
+        },
+      ],
+      requestTemplates: {
+        'application/json': '{"statusCode": 200}',
+      },
+    });
+
+    // Add a resource and method with the mock integration
+    const mockResource = restApi.root.addResource('mock');
+    mockResource.addMethod('ANY', mockIntegration, {
+      methodResponses: [
+        {
+          statusCode: '200',
+          responseModels: {
+            'application/json': Model.EMPTY_MODEL,
+          },
+        },
+      ],
+    });
+  }
 }

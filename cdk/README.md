@@ -12,3 +12,10 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 - `npx cdk deploy` deploy this stack to your default AWS account/region
 - `npx cdk diff` compare deployed stack with current state
 - `npx cdk synth` emits the synthesized CloudFormation template
+
+list the IP addresses associated with the Api Gateway VPC endpoint:
+
+```
+aws ec2 describe-vpc-endpoints --vpc-endpoint-ids vpce-1234a --query "VpcEndpoints[*].NetworkInterfaceIds[]" --output text | tr '\t' '\n' | xargs -I {} aws ec2 describe-network-interfaces --network-interface-ids {} --query "NetworkInterfaces[*].PrivateIpAddresses[*].PrivateIpAddress" --output text
+
+```
