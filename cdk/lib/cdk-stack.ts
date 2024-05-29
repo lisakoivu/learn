@@ -131,6 +131,5 @@ export class CdkStack extends cdk.Stack {
         subnetType: SubnetType.PUBLIC,
       },
     });
-
   }
 }
