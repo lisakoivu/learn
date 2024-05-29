@@ -7,7 +7,6 @@ import {
   AmazonLinuxImage,
   Instance,
   InstanceType,
-  InterfaceVpcEndpointAwsService,
   Peer,
   Port,
   SecurityGroup,
@@ -19,8 +18,6 @@ import {
 import {Key} from 'aws-cdk-lib/aws-kms';
 import * as fs from 'fs';
 import {
-  AnyPrincipal,
-  Effect,
   ManagedPolicy,
   PolicyStatement,
   Role,
@@ -28,16 +25,6 @@ import {
 } from 'aws-cdk-lib/aws-iam';
 import * as os from 'os';
 import * as path from 'node:path';
-import {
-  AccessLogFormat,
-  EndpointType,
-  LogGroupLogDestination,
-  MethodLoggingLevel,
-  MockIntegration,
-  Model,
-  RestApi,
-} from 'aws-cdk-lib/aws-apigateway';
-import {LogGroup} from 'aws-cdk-lib/aws-logs';
 
 export interface CdkStackProps extends StackProps {
   readonly vpcId: string;
