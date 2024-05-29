@@ -1,17 +1,31 @@
+import {Runtime, IFunction, Code, Function} from 'aws-cdk-lib/aws-lambda';
 import {Construct} from 'constructs';
-import {StackProps} from 'aws-cdk-lib';
-import {Code, Function, Runtime} from 'aws-cdk-lib/aws-lambda';
+import {IEvent} from '../src/enums';
+import {PolicyStatement, Role, ServicePrincipal} from 'aws-cdk-lib/aws-iam';
+import {Stack} from 'aws-cdk-lib';
 
-export interface HelloProps extends StackProps {}
+export interface HelloProps {}
 
 export class Hello extends Construct {
-  constructor(scope: Construct, id: string) {
+  public readonly handler: IFunction;
+
+  constructor(scope: Construct, id: string, props: HelloProps) {
     super(scope, id);
 
-    const helloFunction = new Function(this, 'HelloHandler', {
+    const lambdaRole = new Role(this, 'HelloHandlerRole', {
+      assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
+    });
+
+    this.handler = new Function(this, 'HelloHandler', {
       runtime: Runtime.NODEJS_20_X,
-      code: Code.fromAsset('lambda'),
       handler: 'hello.handler',
+      code: Code.fromAsset('src'),
+    });
+
+    this.handler.addPermission('ApiGatewayInvokePermission', {
+      principal: new ServicePrincipal('apigateway.amazonaws.com'),
+      action: 'lambda:InvokeFunction',
+      sourceArn: `arn:aws:execute-api:${Stack.of(this).region}:${Stack.of(this).account}:*/*/*/*`,
     });
   }
 }

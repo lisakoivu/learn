@@ -1,6 +1,7 @@
 {
   "extends": "./node_modules/gts/tsconfig-google.json",
   "compilerOptions": {
+    "strictPropertyInitialization": false,
     "resolveJsonModule": true,
     "target": "ES2022",
     "lib": ["es2022"]

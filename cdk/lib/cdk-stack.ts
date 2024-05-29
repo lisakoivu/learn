@@ -7,6 +7,7 @@ import {
   AmazonLinuxImage,
   Instance,
   InstanceType,
+  InterfaceVpcEndpointAwsService,
   Peer,
   Port,
   SecurityGroup,
@@ -18,6 +19,8 @@ import {
 import {Key} from 'aws-cdk-lib/aws-kms';
 import * as fs from 'fs';
 import {
+  AnyPrincipal,
+  Effect,
   ManagedPolicy,
   PolicyStatement,
   Role,
@@ -148,13 +151,6 @@ export class CdkStack extends cdk.Stack {
       },
     });
 
-    //-------------------------------------------------------------------------
-    // the functions for the api
-    const helloFunction = new Hello(this, 'HelloHandler', {});
-
-    const helloWithCounter = new HitCounter(this, 'HelloHitCounter', {
-      downstream: helloFunction.handler,
-    });
 
     //-------------------------------------------------------------------------
     // api definition
@@ -217,7 +213,16 @@ export class CdkStack extends cdk.Stack {
       }),
     });
 
-    const helloResource = restApi.root.addResource('hello');
+
+    //-------------------------------------------------------------------------
+    // the functions for the api
+    const helloFunction = new Hello(this, 'HelloHandler', {});
+
+    const helloWithCounter = new HitCounter(this, 'HelloHitCounter', {
+      downstream: helloFunction.handler,
+    });
+
+        const helloResource = restApi.root.addResource('hello');
     helloResource.addMethod(
       'GET',
       new LambdaIntegration(helloWithCounter.handler)

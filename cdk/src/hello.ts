@@ -1,16 +1,19 @@
-import {App, Stack, StackProps} from 'aws-cdk-lib';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
+import {APIGatewayProxyEvent, APIGatewayProxyResult} from 'aws-lambda';
 
-export interface HelloStackProps extends StackProps{}
-export class Hello extends Stack {
-  constructor(scope: App, id: string, props?: HelloStackProps) {
-    super(scope, id, props);
+export async function handler(
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> {
+  console.log('request:', JSON.stringify(event, undefined, 2));
 
-    // defines an AWS Lambda resource
-    const hello = new lambda.Function(this, 'HelloHandler', {
-      runtime: lambda.Runtime.NODEJS_20_X, // execution environment
-      code: lambda.Code.fromAsset('src'), // code loaded from "lambda" directory
-      handler: 'hello.handler', // file is "hello", function is "handler"
-    });
-  }
+  // Extract payload
+  const body = JSON.parse(event.body || '{}');
+  console.log('Parsed body:', body);
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      message: 'MEOWWWWWWW',
+      input: body,
+    }),
+  };
 }
