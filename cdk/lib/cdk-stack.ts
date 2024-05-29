@@ -26,11 +26,13 @@ import {
   Role,
   ServicePrincipal,
 } from 'aws-cdk-lib/aws-iam';
+
 import * as os from 'os';
 import * as path from 'node:path';
 import {
   AccessLogFormat,
   EndpointType,
+  LambdaIntegration,
   LogGroupLogDestination,
   MethodLoggingLevel,
   MockIntegration,
@@ -38,6 +40,10 @@ import {
   RestApi,
 } from 'aws-cdk-lib/aws-apigateway';
 import {LogGroup} from 'aws-cdk-lib/aws-logs';
+import {Hello} from './hello';
+import {HitCounter} from './hitcounter';
+import {AttributeType, Table} from 'aws-cdk-lib/aws-dynamodb';
+import {Code, Function, Runtime} from 'aws-cdk-lib/aws-lambda';
 
 export interface CdkStackProps extends StackProps {
   readonly availabilityZones: string[];
@@ -146,6 +152,14 @@ export class CdkStack extends cdk.Stack {
     });
 
     //-------------------------------------------------------------------------
+    // the functions for the api
+    const helloFunction = new Hello(this, 'HelloHandler', {});
+
+    const helloWithCounter = new HitCounter(this, 'HelloHitCounter', {
+      downstream: helloFunction.handler,
+    });
+
+    //-------------------------------------------------------------------------
     // api definition
 
     const logGroup = new LogGroup(this, 'ApiGatewayAccessLogs', {
@@ -206,6 +220,34 @@ export class CdkStack extends cdk.Stack {
       }),
     });
 
+    const helloResource = restApi.root.addResource('hello');
+    helloResource.addMethod(
+      'GET',
+      new LambdaIntegration(helloWithCounter.handler)
+    );
+
+    const leiaResource = restApi.root.addResource('leia');
+    leiaResource.addMethod('GET', new LambdaIntegration(helloFunction.handler));
+
+    leiaResource.addMethod(
+      'POST',
+      new LambdaIntegration(helloFunction.handler)
+    );
+
+    const table = new Table(this, 'Hits', {
+      partitionKey: {name: 'path', type: AttributeType.STRING},
+    });
+
+    const hitCounterFunction = new Function(this, 'HitCounterHandler', {
+      runtime: Runtime.NODEJS_20_X,
+      handler: 'hitcounter.handler',
+      code: Code.fromAsset('src'),
+      environment: {
+        DOWNSTREAM_FUNCTION_NAME: helloFunction.handler.functionName,
+        HITS_TABLE_NAME: table.tableName,
+      },
+    });
+
     const mockIntegration = new MockIntegration({
       integrationResponses: [
         {
@@ -232,5 +274,7 @@ export class CdkStack extends cdk.Stack {
         },
       ],
     });
+
+    // const resourcesIntegration = new
   }
 }
