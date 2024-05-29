@@ -40,19 +40,19 @@ import {
 import {LogGroup} from 'aws-cdk-lib/aws-logs';
 
 export interface CdkStackProps extends StackProps {
-  readonly vpcId: string;
   readonly availabilityZones: string[];
-  readonly privateSubnetIds: string[];
   readonly keyArn: string;
+  readonly privateSubnetIds: string[];
+  readonly vpcId: string;
 }
 
 interface Config {
-  readonly vpcId: string;
-  readonly vpcCidrBlock: string;
   readonly availabilityZones: string[];
-  readonly privateSubnetIds: string[];
   readonly keyArn: string;
+  readonly privateSubnetIds: string[];
   readonly publicSubnetIds: string[];
+  readonly vpcCidrBlock: string;
+  readonly vpcId: string;
 }
 
 export class CdkStack extends cdk.Stack {
@@ -68,11 +68,11 @@ export class CdkStack extends cdk.Stack {
     const key = Key.fromKeyArn(this, 'sharedKey', config.keyArn);
 
     const vpc = Vpc.fromVpcAttributes(this, 'Vpc', {
-      vpcId: config.vpcId,
-      vpcCidrBlock: config.vpcCidrBlock, // Include vpcCidrBlock
       availabilityZones: config.availabilityZones,
       privateSubnetIds: config.privateSubnetIds,
       publicSubnetIds: config.publicSubnetIds,
+      vpcCidrBlock: config.vpcCidrBlock,
+      vpcId: config.vpcId,
     });
 
     // Map the subnet IDs to ISubnet with availabilityZone
@@ -136,10 +136,10 @@ export class CdkStack extends cdk.Stack {
       machineImage: new AmazonLinuxImage({
         generation: AmazonLinuxGeneration.AMAZON_LINUX_2,
       }),
+      role: ec2Role,
       securityGroup: securityGroup,
       userData: userData,
       vpc,
-      role: ec2Role,
       vpcSubnets: {
         subnetType: SubnetType.PUBLIC,
       },
@@ -155,9 +155,9 @@ export class CdkStack extends cdk.Stack {
 
     // Ensure security group allows traffic from VPC
     const apiEndpointSecurityGroup = new SecurityGroup(this, 'ApiEndpointSG', {
-      vpc,
-      description: 'Allow traffic to API Gateway endpoint',
       allowAllOutbound: true,
+      description: 'Allow traffic to API Gateway endpoint',
+      vpc,
     });
 
     apiEndpointSecurityGroup.addIngressRule(
@@ -168,42 +168,42 @@ export class CdkStack extends cdk.Stack {
 
     // Create the interface endpoint for execute-api
     const apiEndpoint = vpc.addInterfaceEndpoint('ExecuteApiEndpoint', {
+      privateDnsEnabled: true,
+      securityGroups: [apiEndpointSecurityGroup],
       service: InterfaceVpcEndpointAwsService.APIGATEWAY,
       subnets: {subnets: privateSubnets},
-      securityGroups: [apiEndpointSecurityGroup],
-      privateDnsEnabled: true,
     });
 
     const apiResourcePolicy = new PolicyStatement({
-      effect: Effect.ALLOW,
-      principals: [new AnyPrincipal()],
       actions: ['execute-api:Invoke'],
-      resources: [`arn:aws:execute-api:${this.region}:${this.account}:*`],
       conditions: {
         StringEquals: {
           'aws:SourceVpce': apiEndpoint.vpcEndpointId,
         },
       },
+      effect: Effect.ALLOW,
+      principals: [new AnyPrincipal()],
+      resources: [`arn:aws:execute-api:${this.region}:${this.account}:*`],
     });
 
     const restApi = new RestApi(this, 'RestApi', {
       cloudWatchRole: true,
       deploy: true,
-      policy: new cdk.aws_iam.PolicyDocument({
-        statements: [apiResourcePolicy],
-      }),
+      deployOptions: {
+        accessLogDestination: new LogGroupLogDestination(logGroup),
+        accessLogFormat: AccessLogFormat.jsonWithStandardFields(),
+        dataTraceEnabled: true,
+        loggingLevel: MethodLoggingLevel.INFO,
+        metricsEnabled: true,
+        stageName: 'test',
+      },
       endpointConfiguration: {
         types: [EndpointType.PRIVATE],
         vpcEndpoints: [apiEndpoint],
       },
-      deployOptions: {
-        stageName: 'test',
-        accessLogDestination: new LogGroupLogDestination(logGroup),
-        accessLogFormat: AccessLogFormat.jsonWithStandardFields(),
-        loggingLevel: MethodLoggingLevel.INFO,
-        dataTraceEnabled: true,
-        metricsEnabled: true,
-      },
+      policy: new cdk.aws_iam.PolicyDocument({
+        statements: [apiResourcePolicy],
+      }),
     });
 
     const mockIntegration = new MockIntegration({
