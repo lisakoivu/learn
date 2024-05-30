@@ -44,6 +44,7 @@ import {Hello} from './hello';
 import {HitCounter} from './hitcounter';
 import {AttributeType, Table} from 'aws-cdk-lib/aws-dynamodb';
 import {Code, Function, Runtime} from 'aws-cdk-lib/aws-lambda';
+import {DatabaseManager} from './database-manager';
 
 export interface CdkStackProps extends StackProps {
   readonly availabilityZones: string[];
@@ -151,7 +152,6 @@ export class CdkStack extends cdk.Stack {
       },
     });
 
-
     //-------------------------------------------------------------------------
     // api definition
 
@@ -213,7 +213,6 @@ export class CdkStack extends cdk.Stack {
       }),
     });
 
-
     //-------------------------------------------------------------------------
     // the functions for the api
     const helloFunction = new Hello(this, 'HelloHandler', {});
@@ -222,7 +221,7 @@ export class CdkStack extends cdk.Stack {
       downstream: helloFunction.handler,
     });
 
-        const helloResource = restApi.root.addResource('hello');
+    const helloResource = restApi.root.addResource('hello');
     helloResource.addMethod(
       'GET',
       new LambdaIntegration(helloWithCounter.handler)
@@ -249,6 +248,20 @@ export class CdkStack extends cdk.Stack {
         HITS_TABLE_NAME: table.tableName,
       },
     });
+    table.grantReadWriteData(hitCounterFunction);
+    helloFunction.handler.grantInvoke(hitCounterFunction);
+
+    const databaseManager = new DatabaseManager(this, 'DatabaseManager', {
+      vpcId: config.vpcId,
+      availabilityZones: config.availabilityZones,
+      privateSubnetIds: config.privateSubnetIds,
+      vpcCidrBlock: config.vpcCidrBlock,
+    });
+    const databaseManagerResource = restApi.root.addResource('databasemanager');
+    databaseManagerResource.addMethod(
+      'GET',
+      new LambdaIntegration(databaseManager.handler)
+    );
 
     const mockIntegration = new MockIntegration({
       integrationResponses: [

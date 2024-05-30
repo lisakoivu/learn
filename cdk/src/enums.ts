@@ -1,7 +1,10 @@
-export interface IEvent {
-  readonly path: string;
-}
+// export interface IEvent {
+//   readonly path: string;
+// }
 
+export interface IEvent {
+  [path: string]: any;
+}
 export interface IEmptyEvent {}
 
 export enum SupportedOperations {

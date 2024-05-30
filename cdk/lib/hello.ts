@@ -3,6 +3,7 @@ import {Construct} from 'constructs';
 import {IEvent} from '../src/enums';
 import {PolicyStatement, Role, ServicePrincipal} from 'aws-cdk-lib/aws-iam';
 import {Stack} from 'aws-cdk-lib';
+import * as path from 'node:path';
 
 export interface HelloProps {}
 
@@ -19,7 +20,7 @@ export class Hello extends Construct {
     this.handler = new Function(this, 'HelloHandler', {
       runtime: Runtime.NODEJS_20_X,
       handler: 'hello.handler',
-      code: Code.fromAsset('src'),
+      code: Code.fromAsset(path.join(__dirname, '../src/')),
     });
 
     this.handler.addPermission('ApiGatewayInvokePermission', {
