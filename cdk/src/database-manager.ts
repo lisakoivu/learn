@@ -10,6 +10,7 @@ export async function handler(event: IEvent): Promise<string | null> {
     return 'error';
   }
 
+  console.log('Meow!');
   try {
     const secretArn = event[EventParameters.SECRETARN]; // Use enum value to access property
     const secret = await getSecret(secretArn);

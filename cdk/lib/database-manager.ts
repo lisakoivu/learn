@@ -9,7 +9,12 @@ import {
 import {Duration, Stack} from 'aws-cdk-lib';
 import {RetentionDays} from 'aws-cdk-lib/aws-logs';
 import * as path from 'path';
-import {Role, ServicePrincipal} from 'aws-cdk-lib/aws-iam';
+import {
+  ManagedPolicy,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+} from 'aws-cdk-lib/aws-iam';
 import {
   InterfaceVpcEndpoint,
   InterfaceVpcEndpointService,
@@ -39,12 +44,18 @@ export class DatabaseManager extends Construct {
       assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
     });
 
-    const resolvedPath = path.join(__dirname, '../src/database-manager.js');
+    lambdaRole.addManagedPolicy(
+      ManagedPolicy.fromAwsManagedPolicyName(
+        'service-role/AWSLambdaVPCAccessExecutionRole'
+      )
+    );
+
+    const resolvedPath = path.join(__dirname, '../dist/database-manager.js');
     console.log('Resolved path:', resolvedPath);
 
     this.handler = new Function(this, 'Handler', {
       architecture: Architecture.ARM_64,
-      code: Code.fromAsset(path.join(__dirname, '../src')),
+      code: Code.fromAsset(path.join(__dirname, '../dist/')),
       handler: 'database-manager.handler',
       runtime: Runtime.NODEJS_20_X,
       role: lambdaRole,
@@ -58,38 +69,13 @@ export class DatabaseManager extends Construct {
       timeout: Duration.seconds(30),
     });
 
-    // this.handler = new NodejsFunction(this, 'Handler', {
-    //   architecture: Architecture.ARM_64,
-    //   bundling: {
-    //     minify: true,
-    //     sourceMap: true,
-    //   },
-    //   depsLockFilePath: path.join(__dirname, '../../pnpm-lock.yaml'),
-    //   entry: path.join(__dirname, '../src/database-manager.ts'),
-    //   environment: {
-    //     NODE_EXTRA_CA_CERTS: '/var/runtime/ca-cert.pem',
-    //   },
-    //   handler: 'handler',
-    //   logRetention: RetentionDays.ONE_MONTH,
-    //   memorySize: 512,
-    //   role: lambdaRole,
-    //   runtime: Runtime.NODEJS_20_X,
-    //   timeout: Duration.seconds(30),
-    //   vpc: Vpc.fromVpcAttributes(scope, 'HandlerVpc', {
-    //     vpcId: props.vpcId,
-    //     availabilityZones: props.availabilityZones,
-    //     privateSubnetIds: props.privateSubnetIds,
-    //     vpcCidrBlock: props.vpcCidrBlock,
-    //   }),
-    // });
-
     this.handler.addPermission('ApiGatewayInvokePermission', {
       principal: new ServicePrincipal('apigateway.amazonaws.com'),
       action: 'lambda:InvokeFunction',
       sourceArn: `arn:aws:execute-api:${Stack.of(this).region}:${Stack.of(this).account}:*/*/*/*`,
     });
 
-    // Create a reference to the VPC id passed in as a parameter.
+    // // Create a reference to the VPC id passed in as a parameter.
     // This is used to create the VPC endpoint.
     const vpc = Vpc.fromVpcAttributes(this, 'Vpc', {
       vpcId: props.vpcId,

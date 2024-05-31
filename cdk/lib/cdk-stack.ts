@@ -289,7 +289,5 @@ export class CdkStack extends cdk.Stack {
         },
       ],
     });
-
-    // const resourcesIntegration = new
   }
 }
