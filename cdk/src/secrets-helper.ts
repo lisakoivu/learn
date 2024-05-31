@@ -64,11 +64,11 @@ export async function checkEvent(event: IEvent): Promise<boolean> {
   console.log(`starting checkEvent: event is ${JSON.stringify(event)}`);
   try {
     if (!event.secretArn) {
-      console.error('Secret ARN is required in the event');
+      console.error('Parameter secretArn is required in the event');
       return false;
     }
     if (!event.operation) {
-      console.error('Operation is required in the event');
+      console.error('Parameter operation is required in the event');
       return false;
     }
     if (!event.databaseName) {

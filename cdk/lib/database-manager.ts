@@ -1,5 +1,11 @@
 import {Construct} from 'constructs';
-import {Architecture, IFunction, Runtime} from 'aws-cdk-lib/aws-lambda';
+import {
+  Architecture,
+  Code,
+  Function,
+  IFunction,
+  Runtime,
+} from 'aws-cdk-lib/aws-lambda';
 import {Duration, Stack} from 'aws-cdk-lib';
 import {RetentionDays} from 'aws-cdk-lib/aws-logs';
 import * as path from 'path';
@@ -36,30 +42,46 @@ export class DatabaseManager extends Construct {
     const resolvedPath = path.join(__dirname, '../src/database-manager.js');
     console.log('Resolved path:', resolvedPath);
 
-    this.handler = new NodejsFunction(this, 'Handler', {
+    this.handler = new Function(this, 'Handler', {
       architecture: Architecture.ARM_64,
-      bundling: {
-        minify: true,
-        sourceMap: true,
-      },
-      // entry: resolvedPath,
-      entry: path.join(__dirname, '../src/database-manager.ts'),
-      environment: {
-        NODE_EXTRA_CA_CERTS: '/var/runtime/ca-cert.pem',
-      },
-      handler: 'handler',
-      logRetention: RetentionDays.ONE_MONTH,
-      memorySize: 512,
-      role: lambdaRole,
+      code: Code.fromAsset(path.join(__dirname, '../src')),
+      handler: 'database-manager.handler',
       runtime: Runtime.NODEJS_20_X,
-      timeout: Duration.seconds(30),
-      vpc: Vpc.fromVpcAttributes(scope, 'HandlerVpc', {
+      role: lambdaRole,
+      vpc: Vpc.fromVpcAttributes(this, 'HandlerVpc', {
         vpcId: props.vpcId,
         availabilityZones: props.availabilityZones,
         privateSubnetIds: props.privateSubnetIds,
         vpcCidrBlock: props.vpcCidrBlock,
       }),
+      memorySize: 512,
+      timeout: Duration.seconds(30),
     });
+
+    // this.handler = new NodejsFunction(this, 'Handler', {
+    //   architecture: Architecture.ARM_64,
+    //   bundling: {
+    //     minify: true,
+    //     sourceMap: true,
+    //   },
+    //   depsLockFilePath: path.join(__dirname, '../../pnpm-lock.yaml'),
+    //   entry: path.join(__dirname, '../src/database-manager.ts'),
+    //   environment: {
+    //     NODE_EXTRA_CA_CERTS: '/var/runtime/ca-cert.pem',
+    //   },
+    //   handler: 'handler',
+    //   logRetention: RetentionDays.ONE_MONTH,
+    //   memorySize: 512,
+    //   role: lambdaRole,
+    //   runtime: Runtime.NODEJS_20_X,
+    //   timeout: Duration.seconds(30),
+    //   vpc: Vpc.fromVpcAttributes(scope, 'HandlerVpc', {
+    //     vpcId: props.vpcId,
+    //     availabilityZones: props.availabilityZones,
+    //     privateSubnetIds: props.privateSubnetIds,
+    //     vpcCidrBlock: props.vpcCidrBlock,
+    //   }),
+    // });
 
     this.handler.addPermission('ApiGatewayInvokePermission', {
       principal: new ServicePrincipal('apigateway.amazonaws.com'),

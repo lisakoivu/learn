@@ -125,7 +125,7 @@ export class CdkStack extends cdk.Stack {
     ``;
 
     // Create a security group
-    const securityGroup = new SecurityGroup(this, 'JumpServerSG', {
+    const securityGroup = new SecurityGroup(this, 'JumpServerSg', {
       vpc,
       description: 'Allow access to the jump server.',
       allowAllOutbound: true,
@@ -141,7 +141,7 @@ export class CdkStack extends cdk.Stack {
     const ec2Instance = new Instance(this, 'JumpServer', {
       instanceType: new InstanceType('t2.small'),
       machineImage: new AmazonLinuxImage({
-        generation: AmazonLinuxGeneration.AMAZON_LINUX_2,
+        generation: AmazonLinuxGeneration.AMAZON_LINUX_2023,
       }),
       role: ec2Role,
       securityGroup: securityGroup,
