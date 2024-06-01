@@ -1,49 +1,68 @@
 import {getSecret, checkSecretKeys, checkEvent} from './secrets-helper';
 import {DatabaseClient as PgDatabaseClient} from './postgres-helper';
 import {EventParameters, IEvent} from './enums';
+import {ApiResponse, ErrorResponse} from './types';
 
-export async function handler(event: IEvent): Promise<string | null> {
+export async function handler(
+  event: any
+): Promise<ApiResponse | ErrorResponse> {
   console.log(`Event is ${JSON.stringify(event)}`);
+
+  const queryParams = event.queryStringParameters || {};
+  const secretArn = queryParams[EventParameters.SECRETARN];
+  const operation = queryParams[EventParameters.OPERATION];
+  const databaseName = queryParams[EventParameters.DATABASENAME];
 
   if (!(await checkEvent(event))) {
     console.error('Event is invalid');
-    return 'error';
+    return {
+      statusCode: 400,
+      body: JSON.stringify({message: 'Event is invalid'}),
+      error: 'InvalidEvent',
+    };
   }
+
+  let result = null;
 
   console.log('Meow!');
   try {
-    const secretArn = event[EventParameters.SECRETARN]; // Use enum value to access property
     const secret = await getSecret(secretArn);
 
     if (secret === null) {
       console.error(`Secret not found in Secrets Manager: ${secretArn}`);
-      return 'error';
+      return {
+        statusCode: 404,
+        body: JSON.stringify({message: `Secret not found: ${secretArn}`}),
+        error: 'SecretNotFound',
+      };
     }
 
     if (!(await checkSecretKeys(secret))) {
       console.error(
         'Secret malformed, keys are missing. Required keys are username, password, endpoint, engine, and port.'
       );
-      return 'error';
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          message: 'Secret malformed, missing required keys',
+        }),
+        error: 'MalformedSecret',
+      };
     }
 
-    let result = null;
     if (secret.engine === 'postgres') {
       const pg = new PgDatabaseClient({
         user: secret.username,
         host: secret.endpoint,
-        // database: event[EventParameters.DATABASENAME], // Use enum value to access property
         database: 'postgres',
         password: secret.password,
         port: secret.port,
         ssl: {rejectUnauthorized: false},
       });
 
-      switch (
-        event[EventParameters.OPERATION] // Use enum value to access property
-      ) {
+      switch (operation) {
         case 'createDatabase':
-          result = await pg.createDatabase(event[EventParameters.DATABASENAME]);
+          result = await pg.createDatabase(databaseName);
           break;
         case 'SELECT':
           result = await pg.selectDate();
@@ -51,13 +70,31 @@ export async function handler(event: IEvent): Promise<string | null> {
           break;
         default:
           console.error('Operation not supported');
-          return 'error';
+          return {
+            statusCode: 400,
+            body: JSON.stringify({message: 'Operation not supported'}),
+            error: 'UnsupportedOperation',
+          };
       }
-      return result;
+    } else {
+      console.error('Unsupported engine');
+      return {
+        statusCode: 400,
+        body: JSON.stringify({message: 'Unsupported engine'}),
+        error: 'UnsupportedEngine',
+      };
     }
-    return null;
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({message: result}),
+    };
   } catch (err) {
     console.error('Error:', err);
-    throw err;
+    return {
+      statusCode: 500,
+      body: JSON.stringify({message: 'Internal Server Error', error: 'KABOOM'}),
+      error: 'InternalError',
+    };
   }
 }

@@ -60,7 +60,10 @@ interface Config {
   readonly publicSubnetIds: string[];
   readonly vpcCidrBlock: string;
   readonly vpcId: string;
+  readonly secretArn: string;
 }
+
+// src/types.ts
 
 export class CdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: CdkStackProps) {
@@ -256,6 +259,8 @@ export class CdkStack extends cdk.Stack {
       availabilityZones: config.availabilityZones,
       privateSubnetIds: config.privateSubnetIds,
       vpcCidrBlock: config.vpcCidrBlock,
+      keyArn: config.keyArn,
+      secretArn: config.secretArn,
     });
     const databaseManagerResource = restApi.root.addResource('databasemanager');
     databaseManagerResource.addMethod(

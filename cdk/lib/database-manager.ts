@@ -7,9 +7,9 @@ import {
   Runtime,
 } from 'aws-cdk-lib/aws-lambda';
 import {Duration, Stack} from 'aws-cdk-lib';
-import {RetentionDays} from 'aws-cdk-lib/aws-logs';
 import * as path from 'path';
 import {
+  Effect,
   ManagedPolicy,
   PolicyStatement,
   Role,
@@ -23,16 +23,16 @@ import {
   Subnet,
   Vpc,
 } from 'aws-cdk-lib/aws-ec2';
-import {NodejsFunction} from 'aws-cdk-lib/aws-lambda-nodejs';
+import {ApiResponse, ErrorResponse} from 'types';
 
 export interface DatabaseManagerProps {
   readonly vpcId: string;
   readonly availabilityZones: string[];
   readonly privateSubnetIds: string[];
   readonly vpcCidrBlock: string;
+  readonly keyArn: string;
+  readonly secretArn: string;
 }
-
-export interface DatabaseManagerProps {}
 
 export class DatabaseManager extends Construct {
   public readonly handler: IFunction;
@@ -75,6 +75,25 @@ export class DatabaseManager extends Construct {
       sourceArn: `arn:aws:execute-api:${Stack.of(this).region}:${Stack.of(this).account}:*/*/*/*`,
     });
 
+    const region = process.env.AWS_REGION;
+    const account = Stack.of(this).account;
+
+    this.handler.addToRolePolicy(
+      new PolicyStatement({
+        actions: ['secretsmanager:GetSecretValue'],
+        resources: [props.secretArn],
+        effect: Effect.ALLOW,
+      })
+    );
+
+    this.handler.addToRolePolicy(
+      new PolicyStatement({
+        actions: ['kms:Decrypt'],
+        resources: [props.keyArn],
+        effect: Effect.ALLOW,
+      })
+    );
+
     // // Create a reference to the VPC id passed in as a parameter.
     // This is used to create the VPC endpoint.
     const vpc = Vpc.fromVpcAttributes(this, 'Vpc', {
@@ -100,14 +119,13 @@ export class DatabaseManager extends Construct {
     );
 
     // Add an interface VPC endpoint for Lambda
-    const currentRegion = process.env.AWS_REGION;
     const lambdaVpcEndpoint = new InterfaceVpcEndpoint(
       this,
       'DatabaseManagerFunctionVpcEndpoint',
       {
         securityGroups: [vpcEndpointSecurityGroup],
         service: new InterfaceVpcEndpointService(
-          `com.amazonaws.${currentRegion}.lambda`,
+          `com.amazonaws.${region}.lambda`,
           5432
         ),
         subnets: {

@@ -4,5 +4,6 @@
   "privateSubnetIds": ["subnet-0ca25478c2d35b8e4", "subnet-094a6a1daa32e3a52"],
   "publicSubnetIds": ["subnet-0d4bf91d48d5b30bf", "subnet-087e124be0d06f44f"],
   "keyArn": "arn:aws:kms:us-west-2:825434587220:key/mrk-7a27a6cf08124ca6b01ed91e476aeb0f",
-  "vpcCidrBlock": "10.200.0.0/20"
+  "vpcCidrBlock": "10.200.0.0/20",
+  "secretArn": "arn:aws:secretsmanager:us-west-2:825434587220:secret:database/lisatest-Kce0FV"
 }

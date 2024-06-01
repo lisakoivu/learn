@@ -10,8 +10,6 @@ export interface IEmptyEvent {}
 export enum SupportedOperations {
   CREATEDB = 'createDb',
   SELECT = 'select',
-  MULTIPLY = 'multiply',
-  DIVIDE = 'divide',
 }
 
 export enum SecretKeys {

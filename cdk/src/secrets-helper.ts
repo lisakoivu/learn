@@ -63,15 +63,16 @@ export async function checkSecretKeys(
 export async function checkEvent(event: IEvent): Promise<boolean> {
   console.log(`starting checkEvent: event is ${JSON.stringify(event)}`);
   try {
-    if (!event.secretArn) {
+    const queryParams = event.queryStringParameters || {};
+    if (!queryParams.secretArn) {
       console.error('Parameter secretArn is required in the event');
       return false;
     }
-    if (!event.operation) {
+    if (!queryParams.operation) {
       console.error('Parameter operation is required in the event');
       return false;
     }
-    if (!event.databaseName) {
+    if (!queryParams.databaseName) {
       console.error('Database name is required in the event');
       return false;
     }
