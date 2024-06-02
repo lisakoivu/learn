@@ -224,19 +224,19 @@ export class CdkStack extends cdk.Stack {
       downstream: helloFunction.handler,
     });
 
-    const helloResource = restApi.root.addResource('hello');
-    helloResource.addMethod(
-      'GET',
-      new LambdaIntegration(helloWithCounter.handler)
-    );
-
-    const leiaResource = restApi.root.addResource('leia');
-    leiaResource.addMethod('GET', new LambdaIntegration(helloFunction.handler));
-
-    leiaResource.addMethod(
-      'POST',
-      new LambdaIntegration(helloFunction.handler)
-    );
+    // const helloResource = restApi.root.addResource('hello');
+    // helloResource.addMethod(
+    //   'GET',
+    //   new LambdaIntegration(helloWithCounter.handler)
+    // );
+    //
+    // const leiaResource = restApi.root.addResource('leia');
+    // leiaResource.addMethod('GET', new LambdaIntegration(helloFunction.handler));
+    //
+    // leiaResource.addMethod(
+    //   'POST',
+    //   new LambdaIntegration(helloFunction.handler)
+    // );
 
     const table = new Table(this, 'Hits', {
       partitionKey: {name: 'path', type: AttributeType.STRING},
@@ -268,6 +268,7 @@ export class CdkStack extends cdk.Stack {
       new LambdaIntegration(databaseManager.handler)
     );
 
+    // start of mocks
     const mockIntegration = new MockIntegration({
       integrationResponses: [
         {
@@ -282,9 +283,18 @@ export class CdkStack extends cdk.Stack {
       },
     });
 
-    // Add a resource and method with the mock integration
-    const mockResource = restApi.root.addResource('mock');
-    mockResource.addMethod('ANY', mockIntegration, {
+    databaseManagerResource.addMethod('POST', mockIntegration, {
+      methodResponses: [
+        {
+          statusCode: '200',
+          responseModels: {
+            'application/json': Model.EMPTY_MODEL,
+          },
+        },
+      ],
+    });
+
+    databaseManagerResource.addMethod('ANY', mockIntegration, {
       methodResponses: [
         {
           statusCode: '200',

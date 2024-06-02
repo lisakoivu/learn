@@ -23,7 +23,6 @@ import {
   Subnet,
   Vpc,
 } from 'aws-cdk-lib/aws-ec2';
-import {ApiResponse, ErrorResponse} from 'types';
 
 export interface DatabaseManagerProps {
   readonly vpcId: string;

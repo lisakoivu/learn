@@ -1,13 +1,11 @@
 import {getSecret, checkSecretKeys, checkEvent} from './secrets-helper';
 import {DatabaseClient as PgDatabaseClient} from './postgres-helper';
-import {EventParameters, IEvent} from './enums';
+import {EventParameters} from './enums';
 import {ApiResponse, ErrorResponse} from './types';
 
 export async function handler(
   event: any
 ): Promise<ApiResponse | ErrorResponse> {
-  console.log(`Event is ${JSON.stringify(event)}`);
-
   const queryParams = event.queryStringParameters || {};
   const secretArn = queryParams[EventParameters.SECRETARN];
   const operation = queryParams[EventParameters.OPERATION];
