@@ -263,10 +263,13 @@ export class CdkStack extends cdk.Stack {
       secretArn: config.secretArn,
     });
     const databaseManagerResource = restApi.root.addResource('databasemanager');
+
     databaseManagerResource.addMethod(
       'GET',
       new LambdaIntegration(databaseManager.handler)
     );
+
+    databaseManagerResource.addResource('select');
 
     // start of mocks
     const mockIntegration = new MockIntegration({

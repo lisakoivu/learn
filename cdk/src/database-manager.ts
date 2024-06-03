@@ -16,13 +16,9 @@ export async function handler(
     return {
       statusCode: 400,
       body: JSON.stringify({message: 'Event is invalid'}),
-      error: 'InvalidEvent',
     };
   }
 
-  let result = null;
-
-  console.log('Meow!');
   try {
     const secret = await getSecret(secretArn);
 
@@ -31,7 +27,6 @@ export async function handler(
       return {
         statusCode: 404,
         body: JSON.stringify({message: `Secret not found: ${secretArn}`}),
-        error: 'SecretNotFound',
       };
     }
 
@@ -44,7 +39,6 @@ export async function handler(
         body: JSON.stringify({
           message: 'Secret malformed, missing required keys',
         }),
-        error: 'MalformedSecret',
       };
     }
 
@@ -60,18 +54,45 @@ export async function handler(
 
       switch (operation) {
         case 'createDatabase':
-          result = await pg.createDatabase(databaseName);
-          break;
+          try {
+            const result = await pg.createDatabase(databaseName);
+            return {
+              statusCode: 200,
+              body: JSON.stringify({message: `Database created: ${result}`}),
+            };
+          } catch (error) {
+            const err = error as Error; // Type assertion
+            console.error('Error creating database', err);
+            return {
+              statusCode: 500,
+              body: JSON.stringify({
+                message: `Error creating database: ${err.message}`,
+              }),
+            };
+          }
         case 'SELECT':
-          result = await pg.selectDate();
-          console.log(`Result is ${result}`);
-          break;
+          try {
+            const result = await pg.selectDate();
+            console.log(`Result is ${result}`);
+            return {
+              statusCode: 200,
+              body: JSON.stringify({message: result}),
+            };
+          } catch (error) {
+            const err = error as Error; // Type assertion
+            console.error('Error selecting data', err);
+            return {
+              statusCode: 500,
+              body: JSON.stringify({
+                message: `Error selecting data: ${err.message}`,
+              }),
+            };
+          }
         default:
           console.error('Operation not supported');
           return {
             statusCode: 400,
             body: JSON.stringify({message: 'Operation not supported'}),
-            error: 'UnsupportedOperation',
           };
       }
     } else {
@@ -79,20 +100,14 @@ export async function handler(
       return {
         statusCode: 400,
         body: JSON.stringify({message: 'Unsupported engine'}),
-        error: 'UnsupportedEngine',
       };
     }
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({message: result}),
-    };
-  } catch (err) {
+  } catch (error) {
+    const err = error as Error; // Type assertion
     console.error('Error:', err);
     return {
       statusCode: 500,
-      body: JSON.stringify({message: 'Internal Server Error', error: 'KABOOM'}),
-      error: 'InternalError',
+      body: JSON.stringify({message: `Internal Server Error: ${err.message}`}),
     };
   }
 }
