@@ -117,14 +117,10 @@ export async function createDatabaseSecret(
       engine: 'postgres',
     };
     const secretNameSuffix = await getRandomString(5).then(secretNameSuffix => {
-      console.log(
-        `secretNameSuffix is ${secretNameSuffix}, type is ${typeof secretNameSuffix}`
-      );
       return secretNameSuffix;
     });
-    console.log(
-      `secretNameSuffix is ${secretNameSuffix}, type is ${typeof secretNameSuffix}`
-    );
+
+    const databaseName = endpoint.split('.')[0];
     const secretName = `database/${databaseName}/${userName}-${secretNameSuffix}`;
     console.log(`Creating secret with name: ${secretName}`);
     const command = new CreateSecretCommand({
