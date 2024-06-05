@@ -7,10 +7,11 @@ export interface IEvent {
 }
 export interface IEmptyEvent {}
 
-export enum SupportedOperations {
-  CREATEDB = 'createDb',
-  SELECT = 'select',
-}
+// export enum SupportedOperations {
+//   CREATEDB = 'createDb',
+//   SELECT = 'select',
+//   DROPDB = 'dropDb',
+// }
 
 export enum SecretKeys {
   ENDPOINT = 'endpoint',

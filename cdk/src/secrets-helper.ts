@@ -1,4 +1,5 @@
 import {
+  CreateSecretCommand,
   GetSecretValueCommand,
   GetSecretValueCommandOutput,
   SecretsManagerClient,
@@ -80,5 +81,60 @@ export async function checkEvent(event: IEvent): Promise<boolean> {
   } catch (error) {
     console.error(`Error checking event. Exiting. ${error}`);
     return false;
+  }
+}
+
+export async function getRandomString(length: number) {
+  let result = '';
+  const characters =
+    'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+  // Loop to generate characters for the specified length
+  for (let i = 0; i < length; i++) {
+    const randomInd = Math.floor(Math.random() * characters.length);
+    result += characters.charAt(randomInd);
+  }
+  return result;
+}
+
+export async function createDatabaseSecret(
+  databaseName: string,
+  userName: string,
+  endpoint: string,
+  port: number,
+  password: string
+): Promise<string | null> {
+  console.log(
+    `starting createDatabaseSecret: creating secret for ${databaseName}`
+  );
+
+  try {
+    const secret = {
+      username: userName,
+      password: password,
+      endpoint: endpoint,
+      port: port,
+      engine: 'postgres',
+    };
+    const secretNameSuffix = await getRandomString(5).then(secretNameSuffix => {
+      console.log(
+        `secretNameSuffix is ${secretNameSuffix}, type is ${typeof secretNameSuffix}`
+      );
+      return secretNameSuffix;
+    });
+    console.log(
+      `secretNameSuffix is ${secretNameSuffix}, type is ${typeof secretNameSuffix}`
+    );
+    const secretName = `database/${databaseName}/${userName}-${secretNameSuffix}`;
+    console.log(`Creating secret with name: ${secretName}`);
+    const command = new CreateSecretCommand({
+      Name: secretName,
+      SecretString: JSON.stringify(secret),
+    });
+    await client.send(command);
+    return secretName;
+  } catch (error) {
+    console.error(`Error creating secret. Exiting. ${error}`);
+    return null;
   }
 }

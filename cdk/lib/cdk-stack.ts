@@ -1,6 +1,6 @@
 import {Construct} from 'constructs';
 import * as cdk from 'aws-cdk-lib';
-import {StackProps} from 'aws-cdk-lib';
+import {StackProps, Tags} from 'aws-cdk-lib';
 import * as p from '../package.json';
 import {
   AmazonLinuxGeneration,
@@ -154,6 +154,8 @@ export class CdkStack extends cdk.Stack {
         subnetType: SubnetType.PUBLIC,
       },
     });
+
+    Tags.of(ec2Instance).add('autostate:stop-schedule', '0 20 - - -');
 
     //-------------------------------------------------------------------------
     // api definition

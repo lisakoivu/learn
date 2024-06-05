@@ -1,4 +1,10 @@
-import {getSecret, checkSecretKeys, checkEvent} from './secrets-helper';
+import {
+  getSecret,
+  checkSecretKeys,
+  checkEvent,
+  createDatabaseSecret,
+  getRandomString,
+} from './secrets-helper';
 import {DatabaseClient as PgDatabaseClient} from './postgres-helper';
 import {EventParameters} from './enums';
 import {ApiResponse, ErrorResponse} from './types';
@@ -18,6 +24,8 @@ export async function handler(
       body: JSON.stringify({message: 'Event is invalid'}),
     };
   }
+
+  console.log(`Operation is ${operation}`);
 
   try {
     const secret = await getSecret(secretArn);
@@ -53,16 +61,51 @@ export async function handler(
       });
 
       switch (operation) {
-        case 'createDatabase':
+        case 'dropDatabase':
           try {
-            const result = await pg.createDatabase(databaseName);
+            await pg.connect();
+            await pg.dropDatabase(databaseName);
+            await pg.end();
             return {
               statusCode: 200,
-              body: JSON.stringify({message: `Database created: ${result}`}),
+              body: JSON.stringify({message: `Database dropped successfully.`}),
             };
           } catch (error) {
-            const err = error as Error; // Type assertion
+            const err = error as Error;
+            console.error('Error dropping database', err);
+            await pg.end();
+            return {
+              statusCode: 500,
+              body: JSON.stringify({
+                message: `Error dropping database: ${err.message}`,
+              }),
+            };
+          }
+        case 'createDatabase':
+          try {
+            await pg.connect();
+            await pg.createDatabase(databaseName);
+            await pg.createUser(databaseName);
+            await pg.grantAdminPrivileges(databaseName);
+            const userPassword = await getRandomString(10);
+            await createDatabaseSecret(
+              databaseName,
+              databaseName,
+              secret.endpoint,
+              secret.port,
+              userPassword
+            );
+            await pg.changePassword(databaseName, userPassword);
+            await pg.end();
+
+            return {
+              statusCode: 200,
+              body: JSON.stringify({message: `Database created successfully`}),
+            };
+          } catch (error) {
+            const err = error as Error;
             console.error('Error creating database', err);
+            await pg.end();
             return {
               statusCode: 500,
               body: JSON.stringify({
@@ -72,15 +115,18 @@ export async function handler(
           }
         case 'SELECT':
           try {
+            await pg.connect();
             const result = await pg.selectDate();
             console.log(`Result is ${result}`);
+            await pg.end();
             return {
               statusCode: 200,
               body: JSON.stringify({message: result}),
             };
           } catch (error) {
-            const err = error as Error; // Type assertion
+            const err = error as Error;
             console.error('Error selecting data', err);
+            await pg.end();
             return {
               statusCode: 500,
               body: JSON.stringify({
@@ -92,7 +138,9 @@ export async function handler(
           console.error('Operation not supported');
           return {
             statusCode: 400,
-            body: JSON.stringify({message: 'Operation not supported'}),
+            body: JSON.stringify({
+              message: `Operation not supported: ${operation}`,
+            }),
           };
       }
     } else {
@@ -103,7 +151,7 @@ export async function handler(
       };
     }
   } catch (error) {
-    const err = error as Error; // Type assertion
+    const err = error as Error;
     console.error('Error:', err);
     return {
       statusCode: 500,
