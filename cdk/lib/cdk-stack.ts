@@ -53,7 +53,7 @@ export interface CdkStackProps extends StackProps {
   readonly vpcId: string;
 }
 
-interface Config {
+export interface Config {
   readonly availabilityZones: string[];
   readonly keyArn: string;
   readonly privateSubnetIds: string[];
@@ -136,7 +136,8 @@ export class CdkStack extends cdk.Stack {
 
     // Allow SSH access from anywhere (or restrict to your IP range)
     securityGroup.addIngressRule(
-      Peer.ipv4('97.100.3.218/32'),
+      // Peer.ipv4('97.100.3.218/32'),
+      Peer.ipv4('108.188.170.206/32'),
       Port.allTraffic(),
       'Allow SSH access from the internet'
     );

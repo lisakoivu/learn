@@ -32,3 +32,12 @@ export interface IEvent {
   [EventParameters.OPERATION]: string;
   [EventParameters.SECRETARN]: string;
 }
+
+export interface IConfig {
+  databaseName: string;
+  userName: string;
+  endpoint: string;
+  port: number;
+  password: string;
+  secretArn: string;
+}
