@@ -4,10 +4,14 @@ import {
   GetSecretValueCommand,
   GetSecretValueCommandOutput,
   ListSecretsCommand,
+  ListSecretsCommandInput,
+  ListSecretsCommandOutput,
+  SecretListEntry,
   SecretsManagerClient,
   TagResourceCommand,
 } from '@aws-sdk/client-secrets-manager';
 import {EventParameters, IEvent, SecretKeys} from './enums';
+import {error} from 'aws-cdk/lib/logging';
 
 const currentRegion = process.env.AWS_REGION;
 const client = new SecretsManagerClient({region: currentRegion});
@@ -41,40 +45,30 @@ export async function checkSecretKeys(secret: SecretDetails): Promise<boolean> {
   console.log(
     `starting checkSecretKeys: keys are ${JSON.stringify(SecretKeys)}`
   );
-  try {
-    if (secret === null) {
+  if (!secret) return false;
+
+  const keys = Object.values(SecretKeys);
+  for (const key of keys) {
+    if (!(key in secret)) {
+      console.error(`Key ${key} is missing from secret`);
       return false;
     }
-    for (const key of Object.values(SecretKeys)) {
-      if (!(key in secret)) {
-        console.error(`Key ${key} is missing from secret`);
-        return false;
-      }
-    }
-    return true;
-  } catch (error) {
-    console.error(`Error fetching secret value. Exiting. ${error}`);
-    return false;
   }
+  return true;
 }
 
 export async function checkEvent(event: IEvent): Promise<boolean> {
   console.log(`starting checkEvent: event is ${JSON.stringify(event)}`);
-  try {
-    const queryParams = event.queryStringParameters || {};
-    if (!queryParams.operation) {
-      console.error('Parameter operation is required in the event');
-      return false;
-    }
-    if (!queryParams.databaseName) {
-      console.error('Database name is required in the event');
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error(`Error checking event. Exiting. ${error}`);
+  const queryParams = event.queryStringParameters || {};
+  if (!queryParams.operation) {
+    console.error('Parameter operation is required in the event');
     return false;
   }
+  if (!queryParams.databaseName) {
+    console.error('Database name is required in the event');
+    return false;
+  }
+  return true;
 }
 
 export async function getRandomString(length: number): Promise<string> {
@@ -135,7 +129,6 @@ export async function createDatabaseSecret(
     };
 
     const tagCommand = new TagResourceCommand(tagInput);
-
     await client.send(tagCommand);
 
     return secretArn;
@@ -145,15 +138,34 @@ export async function createDatabaseSecret(
   }
 }
 
-async function findSecretByTagValue(tagKey: string, tagValue: string) {
+export async function findSecretByTagValue(
+  tagKey: string,
+  tagValue: string
+): Promise<SecretListEntry[]> {
   try {
-    const command = new ListSecretsCommand({});
-    const response = await client.send(command);
+    const listSecretsCommandInput: ListSecretsCommandInput = {
+      Filters: [
+        {
+          Key: 'tag-key', // This must be a valid FilterNameStringType
+          Values: [tagKey],
+        },
+        {
+          Key: 'tag-value', // This must be a valid FilterNameStringType
+          Values: [tagValue],
+        },
+      ],
+    };
+
+    const command = new ListSecretsCommand(listSecretsCommandInput);
+    const response: ListSecretsCommandOutput = await client.send(command);
+
     if (response.SecretList) {
-      const secretsWithTag = response.SecretList.filter(secret =>
-        secret.Tags?.some(tag => tag.Key === tagKey && tag.Value === tagValue)
-      );
-      return secretsWithTag;
+      for (const secret of response.SecretList) {
+        console.log(
+          `findSecretByTagValue: Found secret with ARN: ${secret.ARN}`
+        );
+      }
+      return response.SecretList;
     } else {
       console.log('No secrets found');
       return [];
@@ -165,14 +177,16 @@ async function findSecretByTagValue(tagKey: string, tagValue: string) {
 }
 
 export async function deleteDatabaseSecret(
-  secretName: string
+  secretArn: SecretListEntry
 ): Promise<boolean> {
   try {
-    const command = new DeleteSecretCommand({SecretId: secretName});
+    const command = new DeleteSecretCommand({SecretId: secretArn.ARN});
     await client.send(command);
-    return true;
   } catch (error) {
-    console.error(`Error deleting secret. Exiting. ${error}`);
+    console.error(
+      `Error deleting database secret ${secretArn}. Exiting. ${error}`
+    );
     return false;
   }
+  return true;
 }

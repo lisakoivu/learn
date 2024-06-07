@@ -119,6 +119,14 @@ export class DatabaseManager extends Construct {
       })
     );
 
+    this.handler.addToRolePolicy(
+      new PolicyStatement({
+        actions: ['secretsmanager:ListSecrets'],
+        resources: ['*'],
+        effect: Effect.ALLOW,
+      })
+    );
+
     // // Create a reference to the VPC id passed in as a parameter.
     // This is used to create the VPC endpoint.
     const vpc = Vpc.fromVpcAttributes(this, 'Vpc', {
